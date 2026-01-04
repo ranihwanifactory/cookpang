@@ -26,7 +26,6 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { 
-  Utensils, 
   Search, 
   Heart, 
   LogOut, 
@@ -35,12 +34,9 @@ import {
   Flame,
   Star,
   ShieldCheck,
-  AlertCircle,
-  RefreshCw,
-  Copy,
-  ExternalLink,
   Lock,
-  Settings
+  Copy,
+  RefreshCw
 } from 'lucide-react';
 import VideoCard from './components/VideoCard';
 import VideoDetail from './components/VideoDetail';
@@ -59,12 +55,12 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<{code: string; message: string} | null>(null);
 
-  // Firestore 데이터와 Auth 상태를 모두 체크하여 관리자 여부 판별
+  // 관리자 여부 판별 로직 강화 (Auth 상태와 User 객체 모두 확인)
   const isAdmin = useMemo(() => {
-    const currentAuthEmail = auth.currentUser?.email?.toLowerCase();
+    const authEmail = auth.currentUser?.email?.toLowerCase();
     const profileEmail = user?.email?.toLowerCase();
-    return currentAuthEmail === ADMIN_EMAIL.toLowerCase() || profileEmail === ADMIN_EMAIL.toLowerCase();
-  }, [user, auth.currentUser]);
+    return authEmail === ADMIN_EMAIL.toLowerCase() || profileEmail === ADMIN_EMAIL.toLowerCase();
+  }, [user, auth.currentUser?.email]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -77,40 +73,39 @@ const App: React.FC = () => {
         setVideos(videoList);
         setIsLoading(false);
         setError(null);
-        // 초기 데이터가 없는 경우 관리자면 시드 데이터 등록 제안
-        if (videoList.length === 0 && isAdmin) {
-          seedInitialData();
+        
+        // 데이터가 아예 없는 경우 관리자면 초기 데이터 생성을 제안
+        if (videoList.length === 0 && isAdmin && !isLoading) {
+          // seedInitialData(); // 자동으로 실행하지 않고 버튼으로 제어 가능하도록 함
         }
       }, (err) => {
-        console.error("Firestore Snapshot Error:", err);
+        console.error("Firestore Error:", err);
         setIsLoading(false);
-        setError({
-          code: err.code,
-          message: err.code === 'permission-denied' 
-            ? "데이터베이스 접근 권한이 없습니다. 보안 규칙을 설정해주세요." 
-            : "데이터를 불러오는 중 예상치 못한 오류가 발생했습니다."
-        });
+        if (err.code === 'permission-denied') {
+          setError({ code: 'permission-denied', message: "보안 규칙 설정이 필요합니다." });
+        }
       });
     } catch (e: any) {
       setIsLoading(false);
-      setError({ code: 'unknown', message: e.message });
+      console.error(e);
     }
     return () => unsubscribe();
   }, [isAdmin]);
 
   const seedInitialData = async () => {
     try {
-      if (window.confirm("데이터베이스가 비어있습니다. 초기 샘플 데이터를 등록할까요? (관리자만 가능)")) {
+      if (window.confirm("초기 샘플 데이터를 등록하시겠습니까? (백종원 레시피 등 6개)")) {
         const batch = writeBatch(db);
         MOCK_VIDEOS.forEach(v => {
           const newDocRef = doc(collection(db, "videos"));
           batch.set(newDocRef, { ...v, id: newDocRef.id });
         });
         await batch.commit();
-        alert("초기 데이터가 등록되었습니다.");
+        alert("데이터가 성공적으로 등록되었습니다.");
       }
     } catch (err) {
       console.error("Seeding Error:", err);
+      alert("등록 중 오류가 발생했습니다. 권한을 확인하세요.");
     }
   };
 
@@ -131,9 +126,12 @@ const App: React.FC = () => {
             await setDoc(userDocRef, newProfile);
             setUser(newProfile);
           } else {
-            setUser(userDoc.data() as UserProfile);
+            const data = userDoc.data() as UserProfile;
+            // favorites가 없을 경우를 대비해 빈 배열 보장
+            setUser({ ...data, favorites: data.favorites || [] });
           }
         } catch (err: any) {
+          console.error("Auth Change Error", err);
           setUser({
             uid: fbUser.uid,
             email: fbUser.email,
@@ -168,25 +166,26 @@ const App: React.FC = () => {
       handleLogin();
       return;
     }
-    const isFav = user.favorites.includes(videoId);
+    const currentFavorites = user.favorites || [];
+    const isFav = currentFavorites.includes(videoId);
     const userDocRef = doc(db, "users", user.uid);
     try {
       if (isFav) {
         await updateDoc(userDocRef, { favorites: arrayRemove(videoId) });
-        setUser({ ...user, favorites: user.favorites.filter(id => id !== videoId) });
+        setUser({ ...user, favorites: currentFavorites.filter(id => id !== videoId) });
       } else {
         await updateDoc(userDocRef, { favorites: arrayUnion(videoId) });
-        setUser({ ...user, favorites: [...user.favorites, videoId] });
+        setUser({ ...user, favorites: [...currentFavorites, videoId] });
       }
     } catch (err) {
-      alert("즐겨찾기 업데이트 권한이 없습니다.");
+      alert("즐겨찾기 저장 중 오류가 발생했습니다.");
     }
   };
 
   const filteredVideos = useMemo(() => {
     let result = videos;
     if (isFavoritesView && user) {
-      result = result.filter(v => user.favorites.includes(v.id));
+      result = result.filter(v => user.favorites?.includes(v.id));
     } else if (selectedCategory !== '전체') {
       result = result.filter(v => v.category === selectedCategory);
     }
@@ -246,11 +245,11 @@ service cloud.firestore {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            {/* 관리자 전용 메뉴 버튼 - 더 눈에 띄는 색상으로 강조 */}
+            {/* 관리자 메뉴 버튼 - Indigo 색상으로 강력 강조 */}
             {isAdmin && (
               <button 
                 onClick={() => setShowAdmin(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 hover:-translate-y-0.5"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
               >
                 <ShieldCheck size={18} />
                 <span className="whitespace-nowrap">관리자</span>
@@ -262,7 +261,6 @@ service cloud.firestore {
                 <button 
                   onClick={() => setIsFavoritesView(!isFavoritesView)}
                   className={`p-2 rounded-xl transition-all ${isFavoritesView ? 'bg-rose-500 text-white shadow-lg shadow-rose-200' : 'bg-rose-50 text-rose-500 hover:bg-rose-100'}`}
-                  title="즐겨찾기"
                 >
                   <Heart size={24} fill={isFavoritesView ? "currentColor" : "none"} />
                 </button>
@@ -289,16 +287,16 @@ service cloud.firestore {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Permission Error Setup Guide */}
+        {/* Firestore Rules Guide (Error 403) */}
         {error?.code === 'permission-denied' && (
-          <div className="mb-12 p-8 bg-white border-4 border-orange-400 rounded-[3rem] shadow-2xl animate-in fade-in slide-in-from-bottom-4">
+          <div className="mb-12 p-8 bg-white border-4 border-orange-400 rounded-[3rem] shadow-2xl">
             <div className="flex flex-col md:flex-row gap-8 items-start">
               <div className="bg-orange-500 p-6 rounded-[2rem] text-white shadow-xl shrink-0 mx-auto md:mx-0">
                 <Lock size={48} className="animate-pulse" />
               </div>
               <div className="flex-1">
-                <h3 className="text-2xl font-black text-gray-900 mb-2">Firestore 보안 규칙 설정 가이드</h3>
-                <p className="text-gray-600 mb-6">데이터베이스 접근을 위해 Firebase 콘솔에서 아래 규칙을 적용해야 합니다.</p>
+                <h3 className="text-2xl font-black text-gray-900 mb-2">데이터베이스 접근 권한이 없습니다</h3>
+                <p className="text-gray-600 mb-6">Firebase 콘솔의 Firestore Rules 탭에서 아래 코드를 적용해 주세요.</p>
                 <pre className="bg-gray-900 text-orange-100 p-8 rounded-3xl text-xs overflow-x-auto leading-normal font-mono shadow-2xl">
                   {firestoreRules}
                 </pre>
@@ -332,10 +330,6 @@ service cloud.firestore {
               <h2 className="text-5xl md:text-6xl font-black mb-6 leading-tight drop-shadow-2xl">
                 당신의 식탁을<br />특별한 <span className="text-orange-400">셰프의 경험</span>으로
               </h2>
-              <p className="text-white/90 text-base md:text-lg mb-8 leading-relaxed max-w-lg">
-                전 세계 인기 셰프들의 검증된 레시피를 카테고리별로 만나보세요. <br/>
-                댓글을 통해 다른 사용자들과 요리 팁을 공유할 수 있습니다.
-              </p>
               <div className="flex gap-4">
                 <button 
                    onClick={() => setSelectedCategory('한식')}
@@ -343,12 +337,20 @@ service cloud.firestore {
                 >
                   맛있는 요리 탐색
                 </button>
+                {isAdmin && videos.length === 0 && (
+                  <button 
+                    onClick={seedInitialData}
+                    className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2"
+                  >
+                    <RefreshCw size={18} /> 초기 샘플 데이터 등록
+                  </button>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Category Selector */}
+        {/* Categories */}
         {!isFavoritesView && !error && (
           <div className="flex gap-3 mb-12 overflow-x-auto py-2 scrollbar-hide no-scrollbar">
             {DEFAULT_CATEGORIES.map((cat) => (
@@ -385,7 +387,7 @@ service cloud.firestore {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-48">
             <div className="w-16 h-16 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin"></div>
-            <p className="text-gray-400 font-black mt-6 tracking-widest animate-pulse">요리 재료 준비 중...</p>
+            <p className="text-gray-400 font-black mt-6 tracking-widest animate-pulse">요리 준비 중...</p>
           </div>
         ) : filteredVideos.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
@@ -393,7 +395,7 @@ service cloud.firestore {
               <VideoCard 
                 key={video.id}
                 video={video}
-                isFavorite={user?.favorites.includes(video.id) || false}
+                isFavorite={user?.favorites?.includes(video.id) || false}
                 onSelect={setSelectedVideo}
                 onToggleFavorite={toggleFavorite}
               />
@@ -401,23 +403,29 @@ service cloud.firestore {
           </div>
         ) : !error && (
           <div className="flex flex-col items-center justify-center py-40 text-center bg-white rounded-[4rem] border-2 border-dashed border-gray-100 shadow-inner">
-            <Search size={64} className="text-orange-200 mb-8" />
+            <ChefHat size={64} className="text-orange-200 mb-8" />
             <h3 className="text-2xl font-black text-gray-800">아직 레시피가 없어요</h3>
-            <p className="text-gray-400 mt-2">다른 카테고리를 선택해보세요.</p>
+            {isAdmin && (
+              <button 
+                onClick={() => setShowAdmin(true)}
+                className="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold"
+              >
+                영상 등록하기
+              </button>
+            )}
           </div>
         )}
       </main>
 
-      {/* Footer Branding */}
+      {/* Footer */}
       <footer className="max-w-7xl mx-auto px-8 py-12 border-t border-orange-50 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60">
         <div className="flex items-center gap-2">
           <ChefHat size={20} className="text-orange-500" />
-          <span className="font-black text-gray-800 tracking-tighter">쿡팡 RECIPE HUB</span>
+          <span className="font-black text-gray-800 tracking-tighter uppercase">KookPang Recipe Hub</span>
         </div>
-        <p className="text-xs font-medium text-gray-400">© 2024 KookPang Hub. Your Smart Cooking Guide</p>
+        <p className="text-xs font-medium text-gray-400">© 2024 쿡팡 | Your Daily Cooking Partner</p>
       </footer>
 
-      {/* Modals */}
       {showAdmin && isAdmin && <AdminDashboard videos={videos} onClose={() => setShowAdmin(false)} />}
       {selectedVideo && <VideoDetail video={selectedVideo} user={user} onClose={() => setSelectedVideo(null)} />}
     </div>
