@@ -1,24 +1,25 @@
 
 import React, { useState, useEffect } from 'react';
 import { RecipeVideo, Comment, UserProfile } from '../types';
-import { X, Send, MessageCircle, AlertCircle } from 'lucide-react';
+import { X, Send, MessageCircle, AlertCircle, Trash2, Edit2, Check, RotateCcw } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 interface VideoDetailProps {
   video: RecipeVideo;
   user: UserProfile | null;
+  isAdmin: boolean;
   onClose: () => void;
 }
 
-const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
+const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, isAdmin, onClose }) => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
   const [commentsError, setCommentsError] = useState(false);
 
   useEffect(() => {
-    // 인덱스 생성 오류를 방지하기 위해 복합 쿼리(where + orderBy)를 제거하고
-    // 클라이언트 사이드에서 정렬합니다.
     const q = query(
       collection(db, "comments"),
       where("videoId", "==", video.id)
@@ -26,7 +27,6 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
-      // 최신순 정렬 (클라이언트 측)
       docs.sort((a, b) => b.createdAt - a.createdAt);
       setComments(docs);
       setCommentsError(false);
@@ -55,6 +55,36 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
     } catch (err) {
       console.error("Comment add error", err);
       alert("댓글 작성에 실패했습니다.");
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
+    try {
+      await deleteDoc(doc(db, "comments", commentId));
+    } catch (err) {
+      console.error("Delete error", err);
+      alert("삭제 중 오류가 발생했습니다.");
+    }
+  };
+
+  const handleStartEdit = (comment: Comment) => {
+    setEditingCommentId(comment.id);
+    setEditingText(comment.text);
+  };
+
+  const handleUpdateComment = async (commentId: string) => {
+    if (!editingText.trim()) return;
+    try {
+      await updateDoc(doc(db, "comments", commentId), {
+        text: editingText,
+        updatedAt: Date.now()
+      });
+      setEditingCommentId(null);
+      setEditingText('');
+    } catch (err) {
+      console.error("Update error", err);
+      alert("수정 중 오류가 발생했습니다.");
     }
   };
 
@@ -116,16 +146,53 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
                       className="w-8 h-8 rounded-full shadow-sm"
                       alt=""
                     />
-                    <div className="flex-1">
+                    <div className="flex-1 group/comment">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-gray-700">{comment.userName}</span>
-                        <span className="text-[10px] text-gray-400">
-                          {new Date(comment.createdAt).toLocaleDateString()}
-                        </span>
+                        <div className="flex items-center gap-2 opacity-0 group-hover/comment:opacity-100 transition-opacity">
+                          {user?.uid === comment.userId && editingCommentId !== comment.id && (
+                            <button onClick={() => handleStartEdit(comment)} className="text-blue-500 hover:text-blue-600 p-1">
+                              <Edit2 size={12} />
+                            </button>
+                          )}
+                          {(user?.uid === comment.userId || isAdmin) && (
+                            <button onClick={() => handleDeleteComment(comment.id)} className="text-rose-500 hover:text-rose-600 p-1">
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                          <span className="text-[10px] text-gray-400">
+                            {new Date(comment.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-sm text-gray-600 leading-relaxed bg-white p-2 rounded-lg shadow-sm">
-                        {comment.text}
-                      </p>
+                      
+                      {editingCommentId === comment.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            className="w-full text-sm text-gray-600 p-2 rounded-lg border-2 border-orange-200 focus:outline-none focus:border-orange-500 resize-none h-20"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button 
+                              onClick={() => setEditingCommentId(null)}
+                              className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200"
+                            >
+                              <RotateCcw size={14} />
+                            </button>
+                            <button 
+                              onClick={() => handleUpdateComment(comment.id)}
+                              className="p-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                            >
+                              <Check size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-600 leading-relaxed bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                          {comment.text}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))

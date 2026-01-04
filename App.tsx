@@ -85,7 +85,7 @@ const App: React.FC = () => {
       console.error(e);
     }
     return () => unsubscribe();
-  }, []); // 의존성을 비워 찜하기 시 목록이 다시 로딩되지 않게 함
+  }, []);
 
   const seedInitialData = async () => {
     try {
@@ -165,22 +165,19 @@ const App: React.FC = () => {
     const userDocRef = doc(db, "users", user.uid);
 
     try {
-      // 낙관적 UI 업데이트 (사용자 경험 향상)
       const nextFavorites = isFav 
         ? currentFavorites.filter(id => id !== videoId)
         : [...currentFavorites, videoId];
       
       setUser({ ...user, favorites: nextFavorites });
 
-      // Firestore 업데이트
       await updateDoc(userDocRef, {
         favorites: isFav ? arrayRemove(videoId) : arrayUnion(videoId)
       });
     } catch (err) {
       console.error("Favorite Update Error:", err);
-      // 실패 시 원래 상태로 복구
       setUser({ ...user, favorites: currentFavorites });
-      alert("즐겨찾기 업데이트에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      alert("즐겨찾기 업데이트에 실패했습니다.");
     }
   };
 
@@ -217,6 +214,7 @@ service cloud.firestore {
     match /comments/{commentId} {
       allow read: if true;
       allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
       allow delete: if request.auth != null && (request.auth.uid == resource.data.userId || request.auth.token.email == '${ADMIN_EMAIL}');
     }
   }
@@ -299,7 +297,7 @@ service cloud.firestore {
               </div>
               <div className="flex-1">
                 <h3 className="text-2xl font-black text-gray-900 mb-2">데이터베이스 접근 권한이 없습니다</h3>
-                <p className="text-gray-600 mb-6">Firebase 콘솔의 Firestore Rules 탭에서 아래 코드를 적용해 주세요.</p>
+                <p className="text-gray-600 mb-6">Firebase 콘솔의 Firestore Rules 탭에서 규칙을 적용해 주세요.</p>
                 <pre className="bg-gray-900 text-orange-100 p-8 rounded-3xl text-xs overflow-x-auto leading-normal font-mono shadow-2xl">
                   {firestoreRules}
                 </pre>
@@ -425,7 +423,14 @@ service cloud.firestore {
       </footer>
 
       {showAdmin && isAdmin && <AdminDashboard videos={videos} onClose={() => setShowAdmin(false)} />}
-      {selectedVideo && <VideoDetail video={selectedVideo} user={user} onClose={() => setSelectedVideo(null)} />}
+      {selectedVideo && (
+        <VideoDetail 
+          video={selectedVideo} 
+          user={user} 
+          isAdmin={isAdmin}
+          onClose={() => setSelectedVideo(null)} 
+        />
+      )}
     </div>
   );
 };
