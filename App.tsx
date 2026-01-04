@@ -55,12 +55,13 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<{code: string; message: string} | null>(null);
 
-  // 관리자 여부 판별 (Auth 상태와 User 객체 모두 확인)
+  // 관리자 판별 시 user 객체 전체가 아닌 email만 감시하여 찜하기 시 재구독 방지
+  const userEmail = user?.email;
   const isAdmin = useMemo(() => {
     const authEmail = auth.currentUser?.email?.toLowerCase();
-    const profileEmail = user?.email?.toLowerCase();
+    const profileEmail = userEmail?.toLowerCase();
     return authEmail === ADMIN_EMAIL.toLowerCase() || profileEmail === ADMIN_EMAIL.toLowerCase();
-  }, [user?.email, auth.currentUser?.email]);
+  }, [userEmail, auth.currentUser?.email]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -72,7 +73,6 @@ const App: React.FC = () => {
         const videoList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as RecipeVideo));
         setVideos(videoList);
         setIsLoading(false);
-        setError(null);
       }, (err) => {
         console.error("Firestore Error:", err);
         setIsLoading(false);
@@ -85,22 +85,21 @@ const App: React.FC = () => {
       console.error(e);
     }
     return () => unsubscribe();
-  }, []);
+  }, []); // 의존성을 비워 찜하기 시 목록이 다시 로딩되지 않게 함
 
   const seedInitialData = async () => {
     try {
-      if (window.confirm("초기 샘플 데이터를 등록하시겠습니까? (백종원 레시피 등 6개)")) {
+      if (window.confirm("초기 샘플 데이터를 등록하시겠습니까?")) {
         const batch = writeBatch(db);
         MOCK_VIDEOS.forEach(v => {
           const newDocRef = doc(collection(db, "videos"));
           batch.set(newDocRef, { ...v, id: newDocRef.id });
         });
         await batch.commit();
-        alert("데이터가 성공적으로 등록되었습니다.");
+        alert("데이터가 등록되었습니다.");
       }
     } catch (err) {
       console.error("Seeding Error:", err);
-      alert("등록 중 오류가 발생했습니다. 권한을 확인하세요.");
     }
   };
 
@@ -125,7 +124,7 @@ const App: React.FC = () => {
             setUser({ ...data, favorites: data.favorites || [] });
           }
         } catch (err: any) {
-          console.error("Auth Change Error", err);
+          console.error("Auth Fetch Error", err);
           setUser({
             uid: fbUser.uid,
             email: fbUser.email,
@@ -156,23 +155,32 @@ const App: React.FC = () => {
 
   const toggleFavorite = async (e: React.MouseEvent, videoId: string) => {
     e.stopPropagation();
-    if (!user) {
-      handleLogin();
+    if (!user || !user.uid || !videoId) {
+      if (!user) handleLogin();
       return;
     }
+    
     const currentFavorites = user.favorites || [];
     const isFav = currentFavorites.includes(videoId);
     const userDocRef = doc(db, "users", user.uid);
+
     try {
-      if (isFav) {
-        await updateDoc(userDocRef, { favorites: arrayRemove(videoId) });
-        setUser({ ...user, favorites: currentFavorites.filter(id => id !== videoId) });
-      } else {
-        await updateDoc(userDocRef, { favorites: arrayUnion(videoId) });
-        setUser({ ...user, favorites: [...currentFavorites, videoId] });
-      }
+      // 낙관적 UI 업데이트 (사용자 경험 향상)
+      const nextFavorites = isFav 
+        ? currentFavorites.filter(id => id !== videoId)
+        : [...currentFavorites, videoId];
+      
+      setUser({ ...user, favorites: nextFavorites });
+
+      // Firestore 업데이트
+      await updateDoc(userDocRef, {
+        favorites: isFav ? arrayRemove(videoId) : arrayUnion(videoId)
+      });
     } catch (err) {
-      console.error(err);
+      console.error("Favorite Update Error:", err);
+      // 실패 시 원래 상태로 복구
+      setUser({ ...user, favorites: currentFavorites });
+      alert("즐겨찾기 업데이트에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   };
 
