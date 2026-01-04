@@ -4,7 +4,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>쿡팡 | 최고의 레시피 큐레이션</title>
+    
+    <!-- 네이버 사이트 등록 확인 -->
+    <meta name="naver-site-verification" content="21f6be14507ce00642c08dddaaa7c1527480aadd" />
+    
+    <!-- SEO 및 기본 메타 정보 -->
+    <title>쿡팡 | 최고의 요리 레시피 큐레이션</title>
+    <meta name="description" content="유튜브의 고퀄리티 요리 레시피를 카테고리별로 모아보고, 나만의 즐겨찾기와 댓글 소통이 가능한 스마트 레시피 큐레이션 플랫폼입니다.">
+    <meta name="keywords" content="요리, 레시피, 쿡팡, 백종원, 요리 영상, 한식, 양식, 중식, 베이킹, 다이어트 식단">
+    <link rel="canonical" href="https://cookpang.vercel.app/">
+    
+    <!-- Open Graph (SNS 공유 최적화) -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="쿡팡 (KookPang) | 스마트 레시피 허브">
+    <meta property="og:description" content="오늘 뭐 해먹지? 쿡팡에서 엄선된 최고의 레시피 영상을 만나보세요.">
+    <meta property="og:image" content="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80">
+    <meta property="og:url" content="https://cookpang.vercel.app/">
+    <meta property="og:site_name" content="쿡팡">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="쿡팡 | 최고의 레시피 큐레이션">
+    <meta name="twitter:description" content="유튜브 인기 레시피를 한눈에 모아보는 쿡팡입니다.">
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80">
+
+    <!-- PWA (설치형 앱 설정) -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff7e5f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="쿡팡">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1830/1830839.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -52,6 +83,18 @@
 </head>
 <body>
     <div id="root"></div>
+    <script>
+      // 서비스 워커 등록 (PWA 활성화)
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then(registration => {
+            console.log('SW registered: ', registration);
+          }).catch(registrationError => {
+            console.log('SW registration failed: ', registrationError);
+          });
+        });
+      }
+    </script>
 <script type="module" src="/index.tsx"></script>
 </body>
 </html>
