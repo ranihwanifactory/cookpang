@@ -55,12 +55,12 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<{code: string; message: string} | null>(null);
 
-  // 관리자 여부 판별 로직 강화 (Auth 상태와 User 객체 모두 확인)
+  // 관리자 여부 판별 (Auth 상태와 User 객체 모두 확인)
   const isAdmin = useMemo(() => {
     const authEmail = auth.currentUser?.email?.toLowerCase();
     const profileEmail = user?.email?.toLowerCase();
     return authEmail === ADMIN_EMAIL.toLowerCase() || profileEmail === ADMIN_EMAIL.toLowerCase();
-  }, [user, auth.currentUser?.email]);
+  }, [user?.email, auth.currentUser?.email]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -73,11 +73,6 @@ const App: React.FC = () => {
         setVideos(videoList);
         setIsLoading(false);
         setError(null);
-        
-        // 데이터가 아예 없는 경우 관리자면 초기 데이터 생성을 제안
-        if (videoList.length === 0 && isAdmin && !isLoading) {
-          // seedInitialData(); // 자동으로 실행하지 않고 버튼으로 제어 가능하도록 함
-        }
       }, (err) => {
         console.error("Firestore Error:", err);
         setIsLoading(false);
@@ -90,7 +85,7 @@ const App: React.FC = () => {
       console.error(e);
     }
     return () => unsubscribe();
-  }, [isAdmin]);
+  }, []);
 
   const seedInitialData = async () => {
     try {
@@ -127,7 +122,6 @@ const App: React.FC = () => {
             setUser(newProfile);
           } else {
             const data = userDoc.data() as UserProfile;
-            // favorites가 없을 경우를 대비해 빈 배열 보장
             setUser({ ...data, favorites: data.favorites || [] });
           }
         } catch (err: any) {
@@ -178,17 +172,20 @@ const App: React.FC = () => {
         setUser({ ...user, favorites: [...currentFavorites, videoId] });
       }
     } catch (err) {
-      alert("즐겨찾기 저장 중 오류가 발생했습니다.");
+      console.error(err);
     }
   };
 
   const filteredVideos = useMemo(() => {
     let result = videos;
+    const currentFavorites = user?.favorites || [];
+    
     if (isFavoritesView && user) {
-      result = result.filter(v => user.favorites?.includes(v.id));
+      result = result.filter(v => currentFavorites.includes(v.id));
     } else if (selectedCategory !== '전체') {
       result = result.filter(v => v.category === selectedCategory);
     }
+    
     if (searchQuery.trim()) {
       const lowerQuery = searchQuery.toLowerCase();
       result = result.filter(v => 
@@ -236,7 +233,7 @@ service cloud.firestore {
           <div className="flex-1 max-w-xl relative hidden md:block">
             <input 
               type="text"
-              placeholder="레시피, 셰프, 요리명 검색..."
+              placeholder="레시피 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-sm focus:border-orange-400 focus:bg-white transition-all outline-none"
@@ -245,7 +242,6 @@ service cloud.firestore {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
-            {/* 관리자 메뉴 버튼 - Indigo 색상으로 강력 강조 */}
             {isAdmin && (
               <button 
                 onClick={() => setShowAdmin(true)}
@@ -287,7 +283,6 @@ service cloud.firestore {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Firestore Rules Guide (Error 403) */}
         {error?.code === 'permission-denied' && (
           <div className="mb-12 p-8 bg-white border-4 border-orange-400 rounded-[3rem] shadow-2xl">
             <div className="flex flex-col md:flex-row gap-8 items-start">
@@ -314,7 +309,6 @@ service cloud.firestore {
           </div>
         )}
 
-        {/* Hero Banner */}
         {!isFavoritesView && !error && (
           <div className="mb-12 relative rounded-[3rem] overflow-hidden shadow-2xl h-[400px] flex items-center group">
             <img 
@@ -325,24 +319,24 @@ service cloud.firestore {
             <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent"></div>
             <div className="relative z-10 px-8 md:px-16 text-white max-w-2xl">
               <span className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/90 backdrop-blur-md rounded-full text-xs font-black mb-6 tracking-widest uppercase">
-                <Flame size={16} className="text-yellow-300" /> Premium Recipe Hub
+                <Flame size={16} className="text-yellow-300" /> Best Recipe Hub
               </span>
               <h2 className="text-5xl md:text-6xl font-black mb-6 leading-tight drop-shadow-2xl">
-                당신의 식탁을<br />특별한 <span className="text-orange-400">셰프의 경험</span>으로
+                오늘의 요리는<br /><span className="text-orange-400">쿡팡</span>에서
               </h2>
               <div className="flex gap-4">
                 <button 
                    onClick={() => setSelectedCategory('한식')}
                    className="px-10 py-4 bg-orange-500 text-white rounded-2xl font-black hover:bg-orange-600 transition-all shadow-2xl hover:scale-105 shadow-orange-500/30"
                 >
-                  맛있는 요리 탐색
+                  추천 요리 탐색
                 </button>
                 {isAdmin && videos.length === 0 && (
                   <button 
                     onClick={seedInitialData}
-                    className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2"
+                    className="px-6 py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all flex items-center gap-2 shadow-xl"
                   >
-                    <RefreshCw size={18} /> 초기 샘플 데이터 등록
+                    <RefreshCw size={18} /> 초기 데이터 생성
                   </button>
                 )}
               </div>
@@ -350,7 +344,6 @@ service cloud.firestore {
           </div>
         )}
 
-        {/* Categories */}
         {!isFavoritesView && !error && (
           <div className="flex gap-3 mb-12 overflow-x-auto py-2 scrollbar-hide no-scrollbar">
             {DEFAULT_CATEGORIES.map((cat) => (
@@ -369,7 +362,6 @@ service cloud.firestore {
           </div>
         )}
 
-        {/* Section Heading */}
         {!error && (
           <div className="flex items-center justify-between mb-10">
             <div className="flex items-center gap-4">
@@ -383,11 +375,10 @@ service cloud.firestore {
           </div>
         )}
 
-        {/* Video Grid */}
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-48">
+          <div className="flex flex-col items-center justify-center py-48 text-center">
             <div className="w-16 h-16 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin"></div>
-            <p className="text-gray-400 font-black mt-6 tracking-widest animate-pulse">요리 준비 중...</p>
+            <p className="text-gray-400 font-black mt-6 tracking-widest animate-pulse">데이터 로드 중...</p>
           </div>
         ) : filteredVideos.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
@@ -402,22 +393,21 @@ service cloud.firestore {
             ))}
           </div>
         ) : !error && (
-          <div className="flex flex-col items-center justify-center py-40 text-center bg-white rounded-[4rem] border-2 border-dashed border-gray-100 shadow-inner">
+          <div className="flex flex-col items-center justify-center py-40 text-center bg-white rounded-[4rem] border-2 border-dashed border-gray-100">
             <ChefHat size={64} className="text-orange-200 mb-8" />
-            <h3 className="text-2xl font-black text-gray-800">아직 레시피가 없어요</h3>
+            <h3 className="text-2xl font-black text-gray-800">준비된 레시피가 없습니다.</h3>
             {isAdmin && (
               <button 
                 onClick={() => setShowAdmin(true)}
-                className="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold"
+                className="mt-6 px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-100"
               >
-                영상 등록하기
+                첫 영상 등록하기
               </button>
             )}
           </div>
         )}
       </main>
 
-      {/* Footer */}
       <footer className="max-w-7xl mx-auto px-8 py-12 border-t border-orange-50 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60">
         <div className="flex items-center gap-2">
           <ChefHat size={20} className="text-orange-500" />

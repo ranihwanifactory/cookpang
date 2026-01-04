@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { RecipeVideo, Comment, UserProfile } from '../types';
 import { X, Send, MessageCircle, AlertCircle } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, addDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 
 interface VideoDetailProps {
   video: RecipeVideo;
@@ -17,15 +17,17 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
   const [commentsError, setCommentsError] = useState(false);
 
   useEffect(() => {
-    // Fetch comments in real-time with Error Handling
+    // 인덱스 생성 오류를 방지하기 위해 복합 쿼리(where + orderBy)를 제거하고
+    // 클라이언트 사이드에서 정렬합니다.
     const q = query(
       collection(db, "comments"),
-      where("videoId", "==", video.id),
-      orderBy("createdAt", "desc")
+      where("videoId", "==", video.id)
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      // 최신순 정렬 (클라이언트 측)
+      docs.sort((a, b) => b.createdAt - a.createdAt);
       setComments(docs);
       setCommentsError(false);
     }, (err) => {
@@ -52,7 +54,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
       setCommentText('');
     } catch (err) {
       console.error("Comment add error", err);
-      alert("댓글 작성 권한이 없습니다.");
+      alert("댓글 작성에 실패했습니다.");
     }
   };
 
@@ -84,12 +86,12 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
                 영상 상세 설명
               </h3>
               <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                {video.description || "이 영상에 대한 상세 설명이 없습니다."}
+                {video.description || "상세 설명이 없습니다."}
               </p>
             </div>
           </div>
 
-          {/* Right: Comments */}
+          {/* Right: Comments Section */}
           <div className="w-full lg:w-80 bg-gray-50 border-l border-gray-200 flex flex-col">
             <div className="p-4 border-b border-gray-200 bg-white flex items-center gap-2">
               <MessageCircle size={20} className="text-orange-500" />
@@ -100,7 +102,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
               {commentsError ? (
                 <div className="text-center py-10 px-4">
                   <AlertCircle size={32} className="mx-auto text-orange-300 mb-2" />
-                  <p className="text-xs text-gray-400">댓글 데이터에 접근할 권한이 없습니다.</p>
+                  <p className="text-xs text-gray-400">댓글 로딩 중 오류가 발생했습니다.</p>
                 </div>
               ) : comments.length === 0 ? (
                 <div className="text-center py-10">
@@ -108,9 +110,9 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
                 </div>
               ) : (
                 comments.map((comment) => (
-                  <div key={comment.id} className="flex gap-3">
+                  <div key={comment.id} className="flex gap-3 animate-in fade-in slide-in-from-bottom-2">
                     <img 
-                      src={comment.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userName}`} 
+                      src={comment.userPhoto || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.userId}`} 
                       className="w-8 h-8 rounded-full shadow-sm"
                       alt=""
                     />
@@ -137,7 +139,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
                     type="text"
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
-                    placeholder="맛있는 댓글을 남겨주세요..."
+                    placeholder="댓글을 남겨주세요..."
                     className="w-full pl-4 pr-12 py-3 bg-gray-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-orange-500"
                   />
                   <button 
@@ -150,7 +152,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
               </form>
             ) : (
               <div className="p-4 bg-white border-t border-gray-200 text-center">
-                <p className="text-xs text-gray-500 mb-2">로그인 후 댓글 작성이 가능합니다.</p>
+                <p className="text-xs text-gray-500">로그인 후 댓글을 남길 수 있습니다.</p>
               </div>
             )}
           </div>
