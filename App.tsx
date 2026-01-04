@@ -39,7 +39,8 @@ import {
   RefreshCw,
   Copy,
   ExternalLink,
-  Lock
+  Lock,
+  Settings
 } from 'lucide-react';
 import VideoCard from './components/VideoCard';
 import VideoDetail from './components/VideoDetail';
@@ -58,8 +59,12 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<{code: string; message: string} | null>(null);
 
-  // 이메일 비교 시 소문자로 변환하여 정확도 향상
-  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  // Firestore 데이터와 Auth 상태를 모두 체크하여 관리자 여부 판별
+  const isAdmin = useMemo(() => {
+    const currentAuthEmail = auth.currentUser?.email?.toLowerCase();
+    const profileEmail = user?.email?.toLowerCase();
+    return currentAuthEmail === ADMIN_EMAIL.toLowerCase() || profileEmail === ADMIN_EMAIL.toLowerCase();
+  }, [user, auth.currentUser]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -72,6 +77,7 @@ const App: React.FC = () => {
         setVideos(videoList);
         setIsLoading(false);
         setError(null);
+        // 초기 데이터가 없는 경우 관리자면 시드 데이터 등록 제안
         if (videoList.length === 0 && isAdmin) {
           seedInitialData();
         }
@@ -94,7 +100,7 @@ const App: React.FC = () => {
 
   const seedInitialData = async () => {
     try {
-      if (window.confirm("데이터베이스가 비어있습니다. 초기 샘플 데이터를 등록할까요?")) {
+      if (window.confirm("데이터베이스가 비어있습니다. 초기 샘플 데이터를 등록할까요? (관리자만 가능)")) {
         const batch = writeBatch(db);
         MOCK_VIDEOS.forEach(v => {
           const newDocRef = doc(collection(db, "videos"));
@@ -223,10 +229,11 @@ service cloud.firestore {
             <div className="bg-orange-500 p-2 rounded-xl text-white group-hover:rotate-12 transition-transform shadow-lg shadow-orange-200">
               <ChefHat size={28} />
             </div>
-            <h1 className="text-xl md:text-2xl font-black text-gray-800 tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">
               쿡<span className="text-orange-500">팡</span>
             </h1>
           </div>
+          
           <div className="flex-1 max-w-xl relative hidden md:block">
             <input 
               type="text"
@@ -237,21 +244,25 @@ service cloud.firestore {
             />
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           </div>
+
           <div className="flex items-center gap-2 md:gap-4">
+            {/* 관리자 전용 메뉴 버튼 - 더 눈에 띄는 색상으로 강조 */}
             {isAdmin && (
               <button 
                 onClick={() => setShowAdmin(true)}
-                className="flex items-center gap-2 px-3 md:px-4 py-2 bg-gray-900 text-white rounded-xl text-xs md:text-sm font-bold hover:bg-black transition-colors shadow-lg"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 hover:-translate-y-0.5"
               >
                 <ShieldCheck size={18} />
-                <span className="hidden sm:inline">관리자</span>
+                <span className="whitespace-nowrap">관리자</span>
               </button>
             )}
+
             {user ? (
               <div className="flex items-center gap-3">
                 <button 
                   onClick={() => setIsFavoritesView(!isFavoritesView)}
-                  className={`p-2 rounded-xl transition-all ${isFavoritesView ? 'bg-rose-500 text-white shadow-lg' : 'bg-rose-50 text-rose-500 hover:bg-rose-100'}`}
+                  className={`p-2 rounded-xl transition-all ${isFavoritesView ? 'bg-rose-500 text-white shadow-lg shadow-rose-200' : 'bg-rose-50 text-rose-500 hover:bg-rose-100'}`}
+                  title="즐겨찾기"
                 >
                   <Heart size={24} fill={isFavoritesView ? "currentColor" : "none"} />
                 </button>
@@ -260,7 +271,7 @@ service cloud.firestore {
                   className="w-10 h-10 rounded-full border-2 border-orange-200 shadow-sm"
                   alt="Profile"
                 />
-                <button onClick={handleLogout} className="p-2 hover:bg-gray-100 rounded-full text-gray-400">
+                <button onClick={handleLogout} className="p-2 hover:bg-gray-100 rounded-full text-gray-400" title="로그아웃">
                   <LogOut size={20} />
                 </button>
               </div>
@@ -278,8 +289,9 @@ service cloud.firestore {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8">
+        {/* Permission Error Setup Guide */}
         {error?.code === 'permission-denied' && (
-          <div className="mb-12 p-8 bg-white border-4 border-orange-400 rounded-[3rem] shadow-2xl">
+          <div className="mb-12 p-8 bg-white border-4 border-orange-400 rounded-[3rem] shadow-2xl animate-in fade-in slide-in-from-bottom-4">
             <div className="flex flex-col md:flex-row gap-8 items-start">
               <div className="bg-orange-500 p-6 rounded-[2rem] text-white shadow-xl shrink-0 mx-auto md:mx-0">
                 <Lock size={48} className="animate-pulse" />
@@ -292,7 +304,7 @@ service cloud.firestore {
                 </pre>
                 <div className="mt-8 flex gap-4">
                   <button 
-                    onClick={() => { navigator.clipboard.writeText(firestoreRules); alert("복사되었습니다."); }}
+                    onClick={() => { navigator.clipboard.writeText(firestoreRules); alert("규칙이 복사되었습니다."); }}
                     className="flex items-center gap-3 px-8 py-4 bg-orange-500 text-white rounded-2xl font-bold hover:bg-orange-600"
                   >
                     <Copy size={18} /> 규칙 복사하기
@@ -304,6 +316,7 @@ service cloud.firestore {
           </div>
         )}
 
+        {/* Hero Banner */}
         {!isFavoritesView && !error && (
           <div className="mb-12 relative rounded-[3rem] overflow-hidden shadow-2xl h-[400px] flex items-center group">
             <img 
@@ -314,27 +327,28 @@ service cloud.firestore {
             <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent"></div>
             <div className="relative z-10 px-8 md:px-16 text-white max-w-2xl">
               <span className="inline-flex items-center gap-2 px-4 py-2 bg-orange-500/90 backdrop-blur-md rounded-full text-xs font-black mb-6 tracking-widest uppercase">
-                <Flame size={16} className="text-yellow-300" /> Best Recipes Hub
+                <Flame size={16} className="text-yellow-300" /> Premium Recipe Hub
               </span>
               <h2 className="text-5xl md:text-6xl font-black mb-6 leading-tight drop-shadow-2xl">
                 당신의 식탁을<br />특별한 <span className="text-orange-400">셰프의 경험</span>으로
               </h2>
               <p className="text-white/90 text-base md:text-lg mb-8 leading-relaxed max-w-lg">
                 전 세계 인기 셰프들의 검증된 레시피를 카테고리별로 만나보세요. <br/>
-                댓글을 통해 다른 셰프들과 노하우를 공유할 수 있습니다.
+                댓글을 통해 다른 사용자들과 요리 팁을 공유할 수 있습니다.
               </p>
               <div className="flex gap-4">
                 <button 
                    onClick={() => setSelectedCategory('한식')}
                    className="px-10 py-4 bg-orange-500 text-white rounded-2xl font-black hover:bg-orange-600 transition-all shadow-2xl hover:scale-105 shadow-orange-500/30"
                 >
-                  추천 요리 보기
+                  맛있는 요리 탐색
                 </button>
               </div>
             </div>
           </div>
         )}
 
+        {/* Category Selector */}
         {!isFavoritesView && !error && (
           <div className="flex gap-3 mb-12 overflow-x-auto py-2 scrollbar-hide no-scrollbar">
             {DEFAULT_CATEGORIES.map((cat) => (
@@ -353,6 +367,7 @@ service cloud.firestore {
           </div>
         )}
 
+        {/* Section Heading */}
         {!error && (
           <div className="flex items-center justify-between mb-10">
             <div className="flex items-center gap-4">
@@ -366,10 +381,11 @@ service cloud.firestore {
           </div>
         )}
 
+        {/* Video Grid */}
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-48">
             <div className="w-16 h-16 border-4 border-orange-100 border-t-orange-500 rounded-full animate-spin"></div>
-            <p className="text-gray-400 font-black mt-6 tracking-widest">요리 준비 중...</p>
+            <p className="text-gray-400 font-black mt-6 tracking-widest animate-pulse">요리 재료 준비 중...</p>
           </div>
         ) : filteredVideos.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
@@ -386,19 +402,22 @@ service cloud.firestore {
         ) : !error && (
           <div className="flex flex-col items-center justify-center py-40 text-center bg-white rounded-[4rem] border-2 border-dashed border-gray-100 shadow-inner">
             <Search size={64} className="text-orange-200 mb-8" />
-            <h3 className="text-2xl font-black text-gray-800">준비된 레시피가 없네요</h3>
+            <h3 className="text-2xl font-black text-gray-800">아직 레시피가 없어요</h3>
+            <p className="text-gray-400 mt-2">다른 카테고리를 선택해보세요.</p>
           </div>
         )}
       </main>
 
+      {/* Footer Branding */}
       <footer className="max-w-7xl mx-auto px-8 py-12 border-t border-orange-50 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60">
         <div className="flex items-center gap-2">
           <ChefHat size={20} className="text-orange-500" />
           <span className="font-black text-gray-800 tracking-tighter">쿡팡 RECIPE HUB</span>
         </div>
-        <p className="text-xs font-medium text-gray-400">© 2024 KookPang Hub. Your Daily Cooking Partner</p>
+        <p className="text-xs font-medium text-gray-400">© 2024 KookPang Hub. Your Smart Cooking Guide</p>
       </footer>
 
+      {/* Modals */}
       {showAdmin && isAdmin && <AdminDashboard videos={videos} onClose={() => setShowAdmin(false)} />}
       {selectedVideo && <VideoDetail video={selectedVideo} user={user} onClose={() => setSelectedVideo(null)} />}
     </div>
