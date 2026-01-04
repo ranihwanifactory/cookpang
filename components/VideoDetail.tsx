@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { RecipeVideo, Comment, UserProfile } from '../types';
-import { X, Send, Sparkles, MessageCircle, Clock, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
-import { getRecipeSummary } from '../services/geminiService';
+import { X, Send, MessageCircle, AlertCircle } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 
@@ -13,11 +12,8 @@ interface VideoDetailProps {
 }
 
 const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
-  const [summary, setSummary] = useState<any>(null);
-  const [loadingSummary, setLoadingSummary] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
-  const [isSummaryExpanded, setIsSummaryExpanded] = useState(true);
   const [commentsError, setCommentsError] = useState(false);
 
   useEffect(() => {
@@ -39,13 +35,6 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
 
     return () => unsubscribe();
   }, [video.id]);
-
-  const handleSummarize = async () => {
-    setLoadingSummary(true);
-    const result = await getRecipeSummary(video.title, video.description);
-    setSummary(result);
-    setLoadingSummary(false);
-  };
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +60,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
       <div className="bg-white w-full max-w-5xl rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
         <div className="flex flex-col lg:flex-row h-full max-h-[90vh]">
-          {/* Left: Video & Summary */}
+          {/* Left: Video Content */}
           <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-4">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xl font-bold text-gray-800 line-clamp-1">{video.title}</h2>
@@ -89,59 +78,14 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
               />
             </div>
 
-            {/* AI Summary Section */}
-            <div className="bg-orange-50 rounded-2xl p-4 border border-orange-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-orange-600 font-bold">
-                  <Sparkles size={20} />
-                  <span>AI 레시피 요약</span>
-                </div>
-                {summary && (
-                  <button 
-                    onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
-                    className="text-orange-400 hover:text-orange-600"
-                  >
-                    {isSummaryExpanded ? <ChevronUp size={20}/> : <ChevronDown size={20}/>}
-                  </button>
-                )}
-              </div>
-
-              {!summary ? (
-                <button 
-                  onClick={handleSummarize}
-                  disabled={loadingSummary}
-                  className="mt-3 w-full py-2 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 disabled:opacity-50 transition-colors"
-                >
-                  {loadingSummary ? '레시피 분석 중...' : 'Gemini AI로 레시피 분석하기'}
-                </button>
-              ) : isSummaryExpanded && (
-                <div className="mt-4 space-y-4 animate-in slide-in-from-top-2 duration-300">
-                  <div>
-                    <h4 className="font-bold text-gray-700 text-sm mb-2">준비 재료</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {summary.ingredients.map((ing: string, i: number) => (
-                        <span key={i} className="px-3 py-1 bg-white text-orange-700 rounded-full text-xs shadow-sm border border-orange-50">
-                          {ing}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-gray-700 text-sm mb-2">핵심 순서</h4>
-                    <ol className="space-y-2">
-                      {summary.steps.map((step: string, i: number) => (
-                        <li key={i} className="flex gap-2 text-sm text-gray-600">
-                          <span className="font-bold text-orange-500">{i + 1}.</span>
-                          {step}
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                  <div className="pt-2 border-t border-orange-200">
-                    <p className="text-sm font-medium text-orange-800 italic">" {summary.tip} "</p>
-                  </div>
-                </div>
-              )}
+            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+              <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <span className="w-1 h-4 bg-orange-500 rounded-full"></span>
+                영상 상세 설명
+              </h3>
+              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                {video.description || "이 영상에 대한 상세 설명이 없습니다."}
+              </p>
             </div>
           </div>
 
@@ -156,7 +100,7 @@ const VideoDetail: React.FC<VideoDetailProps> = ({ video, user, onClose }) => {
               {commentsError ? (
                 <div className="text-center py-10 px-4">
                   <AlertCircle size={32} className="mx-auto text-orange-300 mb-2" />
-                  <p className="text-xs text-gray-400">댓글 데이터에 접근할 권한이 없습니다. 관리자에게 문의하세요.</p>
+                  <p className="text-xs text-gray-400">댓글 데이터에 접근할 권한이 없습니다.</p>
                 </div>
               ) : comments.length === 0 ? (
                 <div className="text-center py-10">
