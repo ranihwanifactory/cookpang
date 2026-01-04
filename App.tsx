@@ -58,7 +58,8 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<{code: string; message: string} | null>(null);
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  // 이메일 비교 시 소문자로 변환하여 정확도 향상
+  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
   useEffect(() => {
     setIsLoading(true);
@@ -223,7 +224,7 @@ service cloud.firestore {
               <ChefHat size={28} />
             </div>
             <h1 className="text-xl md:text-2xl font-black text-gray-800 tracking-tight">
-              요리<span className="text-orange-500">해조</span>
+              쿡<span className="text-orange-500">팡</span>
             </h1>
           </div>
           <div className="flex-1 max-w-xl relative hidden md:block">
@@ -240,10 +241,10 @@ service cloud.firestore {
             {isAdmin && (
               <button 
                 onClick={() => setShowAdmin(true)}
-                className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-colors shadow-lg"
+                className="flex items-center gap-2 px-3 md:px-4 py-2 bg-gray-900 text-white rounded-xl text-xs md:text-sm font-bold hover:bg-black transition-colors shadow-lg"
               >
                 <ShieldCheck size={18} />
-                <span>관리자</span>
+                <span className="hidden sm:inline">관리자</span>
               </button>
             )}
             {user ? (
@@ -393,9 +394,9 @@ service cloud.firestore {
       <footer className="max-w-7xl mx-auto px-8 py-12 border-t border-orange-50 flex flex-col md:flex-row items-center justify-between gap-6 opacity-60">
         <div className="flex items-center gap-2">
           <ChefHat size={20} className="text-orange-500" />
-          <span className="font-black text-gray-800 tracking-tighter">요리해조 RECIPE HUB</span>
+          <span className="font-black text-gray-800 tracking-tighter">쿡팡 RECIPE HUB</span>
         </div>
-        <p className="text-xs font-medium text-gray-400">© 2024 K-Chef Recipe Hub. Your Daily Cooking Partner</p>
+        <p className="text-xs font-medium text-gray-400">© 2024 KookPang Hub. Your Daily Cooking Partner</p>
       </footer>
 
       {showAdmin && isAdmin && <AdminDashboard videos={videos} onClose={() => setShowAdmin(false)} />}
